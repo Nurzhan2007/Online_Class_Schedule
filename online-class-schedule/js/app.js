@@ -1,9 +1,8 @@
 const app = document.getElementById("app");
 
-// The logged-in user, as returned by the server ({id, name, studentId, email, role}).
-let currentUser = null;
+let currentUser = getLocalCurrentUser();
 
-// login | register | dashboard | courses | mycourses | schedule | details
+// login | register | dashboard | courses | mycourses | details
 let currentView = "login";
 
 let selectedCourseId = null;
@@ -21,34 +20,25 @@ const defaultFilters = {
 
 let filters = { ...defaultFilters };
 
-// Last error while loading data from the server (shown with a retry button).
-let dataError = null;
 
-// True while a login / registration / enrollment request is running:
-// prevents double submissions.
-let busy = false;
-
-// True when the catalogue page is drawn with real data (then a background
-// refresh only redraws the rows and the search box keeps its focus).
-let coursesPageReady = false;
-
-const DATA_VIEWS = ["dashboard", "courses", "mycourses", "schedule", "details"];
-
-
-function isStudent() {
-    return currentUser !== null && (currentUser.role || "student") === "student";
+function userEmail() {
+    return currentUser.email.toLowerCase();
 }
 
 function myCourses() {
-    return CourseAPI.getMyCourses();
+    const ids = CourseAPI.getRegisteredIds(userEmail());
+
+    return CourseAPI.getAll().filter(c => ids.includes(c.id)).map(c => ({
+        ...c, ...CourseAPI.getSection(userEmail(), c.id)
+    }));
 }
 
 function timeRange(c) {
-    return esc(c.start) + " - " + esc(c.end);
+    return c.start + " - " + c.end;
 }
 
 function roomLabel(c) {
-    return t("room." + c.room.kind) + " " + esc(c.room.no);
+    return t("room." + c.room.kind) + " " + c.room.no;
 }
 
 function optionList(items, selected) {
@@ -60,89 +50,9 @@ function optionList(items, selected) {
     `).join("");
 }
 
-/* busy state: buttons with data-action are disabled while a request runs;
-   data-blocked="true" keeps a button disabled for its own reason
-   (already registered, no seats left). */
-function setBusy(value) {
-    busy = value;
-
-    document.querySelectorAll("button[data-action]").forEach(button => {
-        button.disabled = value || button.dataset.blocked === "true";
-    });
-}
-
-// Errors of user actions. 401 was already handled by onUnauthorized.
-function showActionError(error) {
-    if (error instanceof ApiError && error.status === 401) {
-        return;
-    }
-
-    alert(errorMessage(error));
-}
-
-/* Loading / error state of the server data */
-
-function dataPlaceholder() {
-    if (dataError) {
-        return `
-            <div class="card empty">
-                ${esc(errorMessage(dataError))}<br>
-                <button class="btn" onclick="retryLoad()">${t("app.retry")}</button>
-            </div>
-        `;
-    }
-
-    return `<div class="card empty">${t("app.loading")}</div>`;
-}
-
-// Data is loaded but the latest refresh failed: show the cached data plus a notice.
-function staleDataNotice() {
-    return CourseAPI.isLoaded() && dataError ? dataPlaceholder() : "";
-}
-
-function retryLoad() {
-    dataError = null;
-    renderView(currentView);
-    refreshData();
-}
-
-let refreshing = null;
-
-// Reload catalogue (+ my registrations) from the server, then redraw.
-// force: after a change (register/cancel) a load that started earlier may
-// carry old data, so wait for it and load once more.
-function refreshData(force) {
-    if (refreshing) {
-        return force ? refreshing.then(() => refreshData(true)) : refreshing;
-    }
-
-    refreshing = CourseAPI.load(isStudent())
-        .then(() => {
-            dataError = null;
-        })
-        .catch(error => {
-            if (!(error instanceof ApiError) || error.status !== 401) {
-                dataError = error;
-            }
-        })
-        .finally(() => {
-            refreshing = null;
-
-            if (currentUser && DATA_VIEWS.includes(currentView)) {
-                redrawWithNewData();
-            }
-        });
-
-    return refreshing;
-}
-
-function redrawWithNewData() {
-    if (currentView === "courses" && coursesPageReady && CourseAPI.isLoaded() && !dataError) {
-        updateCourseList();
-        return;
-    }
-
-    renderView(currentView);
+// Shows a translated error returned by CourseAPI
+function showApiError(result) {
+    alert(t(result.error, result.params));
 }
 
 /* til ayustyrushy */
@@ -170,7 +80,7 @@ function changeLanguage(lang) {
     render();
 }
 
-// Re-draws the page the user is currently on (no new requests)
+// Re-draws the page the user is currently on
 function render() {
 
     document.title = t("app.title");
@@ -185,19 +95,7 @@ function render() {
         return;
     }
 
-    renderView(currentView);
-}
-
-/* start-up screen while the session is being restored */
-
-function showStartupLoading() {
-    app.innerHTML = `
-        <div class="login-page">
-            <div class="login-form">
-                <h2>${t("app.loading")}</h2>
-            </div>
-        </div>
-    `;
+    navigate(currentView);
 }
 
 /* login page */
@@ -239,7 +137,7 @@ function showLogin() {
                     >
                 </div>
 
-                <button class="login-button" type="submit" data-action="login">
+                <button class="login-button" type="submit">
                     ${t("login.button")}
                 </button>
 
@@ -253,32 +151,23 @@ function showLogin() {
         </div>
     `;
 
-    document.getElementById("loginForm").onsubmit = async function(e) {
+    document.getElementById("loginForm").onsubmit = function(e) {
 
         e.preventDefault();
-
-        if (busy) return;
 
         const formData = new FormData(this);
 
         const email = formData.get("email").trim();
         const password = formData.get("password");
 
-        setBusy(true);
+        const result = authenticateLocalUser(email, password);
 
-        try {
-            currentUser = await Auth.login(email, password);
-        } catch (error) {
-            // auth.invalid {n attempts left} / auth.locked {time} - exactly what the server says
-            alert(errorMessage(error));
+        if (!result.success) {
+            alert(result.message);
             return;
-        } finally {
-            setBusy(false);
         }
 
-        CourseAPI.clear();
-        dataError = null;
-        filters = { ...defaultFilters };
+        currentUser = result.user;
 
         navigate("dashboard");
     };
@@ -336,7 +225,7 @@ function showRegister() {
                         required
                     >
 
-                    <button class="btn" type="submit" data-action="signup">
+                    <button class="btn" type="submit">
                         ${t("reg.create")}
                     </button>
 
@@ -352,29 +241,22 @@ function showRegister() {
         </div>
     `;
 
-    document.getElementById("registerForm").onsubmit = async function(e) {
+    document.getElementById("registerForm").onsubmit = function(e) {
 
         e.preventDefault();
 
-        if (busy) return;
-
         const formData = new FormData(this);
 
-        setBusy(true);
+        const result = registerLocalStudent({
+            name: formData.get("name"),
+            studentId: formData.get("studentId"),
+            email: formData.get("email"),
+            password: formData.get("password")
+        });
 
-        try {
-            // Creates a real student account in the database.
-            await Auth.register({
-                name: formData.get("name"),
-                studentId: formData.get("studentId"),
-                email: formData.get("email"),
-                password: formData.get("password")
-            });
-        } catch (error) {
-            alert(errorMessage(error));
+        if (!result.success) {
+            alert(result.message);
             return;
-        } finally {
-            setBusy(false);
         }
 
         alert(t("reg.success"));
@@ -436,6 +318,10 @@ function header() {
                 ${t("nav.schedule")}
             </button>
 
+            <button onclick="navigate('student')">
+                ${t("nav.student")}
+            </button>
+
 
         </nav>
     `;
@@ -443,7 +329,15 @@ function header() {
 
 /* navigation */
 
-function renderView(page) {
+function navigate(page) {
+
+    if (!currentUser || !validateAccessToken()) {
+        currentUser = null;
+        showLogin();
+        return;
+    }
+
+    currentView = page;
 
     document.title = t("app.title");
 
@@ -455,26 +349,9 @@ function renderView(page) {
 
     if (page === "schedule") showUniversitySchedule();
 
+    if (page === "student") showStudentDashboard();
+
     if (page === "details") showCourseDetails();
-}
-
-// Show a page from the cache at once, then refresh its data from the server.
-function navigate(page) {
-
-    if (!currentUser || !validateAccessToken()) {
-        endSession();
-        return;
-    }
-
-    currentView = page;
-
-    renderView(page);
-
-    if (page === "details") {
-        refreshSelectedCourse();
-    } else {
-        refreshData();
-    }
 }
 
 /* dashboard */
@@ -482,10 +359,6 @@ function navigate(page) {
 function showDashboard() {
 
     const registered = myCourses();
-
-    const studentId = currentUser.studentId
-        ? " · " + esc(t("dash.studentId", { id: currentUser.studentId }))
-        : "";
 
     app.innerHTML = `
         ${header()}
@@ -497,12 +370,8 @@ function showDashboard() {
             </h1>
 
             <p class="subtitle">
-                ${t("dash.subtitle")}${studentId}
+                ${t("dash.subtitle")}
             </p>
-
-            ${!CourseAPI.isLoaded() ? dataPlaceholder() : `
-
-            ${staleDataNotice()}
 
             <div class="grid">
 
@@ -536,7 +405,7 @@ function showDashboard() {
                     <p>${t("dash.credits")}</p>
 
                     <div class="stat-number">
-                        ${CourseAPI.getTotalCredits()}
+                        ${CourseAPI.getTotalCredits(userEmail())}
                     </div>
 
                     <span class="badge">
@@ -555,7 +424,6 @@ function showDashboard() {
                 ${scheduleTable(registered)}
 
             </div>
-            `}
 
         </main>
 
@@ -593,7 +461,7 @@ function scheduleTable(registered, showAll = false) {
                 <tbody>
                     ${times.map(time => `
                         <tr>
-                            <td class="time-cell">${esc(time)}</td>
+                            <td class="time-cell">${time}</td>
                             ${DAY_ORDER.map(day => {
                                 const courses = registered.filter(c =>
                                     c.day === day && c.start === time
@@ -605,7 +473,7 @@ function scheduleTable(registered, showAll = false) {
                                             ? courses.map(course => `
                                                 <div class="schedule-course">
                                                     <strong>${esc(loc(course.name))}</strong>
-                                                    <span>${esc(course.code)}</span>
+                                                    <span>${course.code}</span>
                                                     <span>${timeRange(course)}</span>
                                                     <span>${esc(course.instructor)}</span>
                                                     <span>${roomLabel(course)}</span>
@@ -635,7 +503,7 @@ function scheduleTable(registered, showAll = false) {
                             ${courses.map(course => `
                                 <article class="schedule-course mobile-course">
                                     <strong>${esc(loc(course.name))}</strong>
-                                    <span>${esc(course.code)}</span>
+                                    <span>${course.code}</span>
                                     <span>${timeRange(course)}</span>
                                     <span>${esc(course.instructor)}</span>
                                     <span>${roomLabel(course)}</span>
@@ -656,11 +524,8 @@ function showUniversitySchedule() {
         <main class="container">
             <h1 class="page-title">${t("schedule.title")}</h1>
             <p class="subtitle">${t("schedule.subtitle")}</p>
-            ${!CourseAPI.isLoaded() ? dataPlaceholder() : `
-            ${staleDataNotice()}
             <div class="card schedule-legend"><span class="schedule-dot"></span>${t("schedule.legend")}</div>
             <div class="card">${scheduleTable(courses, true)}</div>
-            `}
         </main>
         <footer class="footer">${t("footer")}</footer>`;
 }
@@ -706,7 +571,7 @@ function courseRow(c) {
         <div class="course-row">
 
             <div class="cell cell-code" data-label="${t("col.code")}">
-                ${esc(c.code)}
+                ${c.code}
             </div>
 
             <div class="cell cell-name">
@@ -761,22 +626,6 @@ function updateCourseList() {
 
 function showCourses() {
 
-    if (!CourseAPI.isLoaded()) {
-
-        coursesPageReady = false;
-
-        app.innerHTML = `
-            ${header()}
-            <main class="container">
-                <h1 class="page-title">${t("catalog.title")}</h1>
-                <p class="subtitle">${t("catalog.subtitle")}</p>
-                ${dataPlaceholder()}
-            </main>
-            <footer class="footer">${t("footer")}</footer>
-        `;
-        return;
-    }
-
     const categoryItems = [["all", t("cat.all")]].concat(
         CourseAPI.getCategories().map(cat => [cat, t("cat." + cat)])
     );
@@ -814,8 +663,6 @@ function showCourses() {
             <p class="subtitle">
                 ${t("catalog.subtitle")}
             </p>
-
-            ${staleDataNotice()}
 
             <div class="card">
 
@@ -927,8 +774,6 @@ function showCourses() {
         </footer>
     `;
 
-    coursesPageReady = !dataError;
-
     document.getElementById("courseSearch").oninput = function() {
         filters.term = this.value;
         updateCourseList();
@@ -989,53 +834,20 @@ function openCourse(id) {
     navigate("details");
 }
 
-// Fresh seat count for the open course (GET /api/courses/{id}).
-function refreshSelectedCourse() {
-    const id = selectedCourseId;
-
-    CourseAPI.refreshCourse(id)
-        .then(() => {
-            if (currentUser && currentView === "details" && selectedCourseId === id && !busy) {
-                showCourseDetails();
-            }
-        })
-        .catch(error => {
-            if (error instanceof ApiError && error.status === 401) return;
-
-            if (error instanceof ApiError && error.status === 404) {
-                navigate("courses");   // the course no longer exists
-                return;
-            }
-
-            dataError = error;
-
-            if (currentView === "details") showCourseDetails();
-        });
-}
-
 function showCourseDetails() {
 
     const c = CourseAPI.getById(selectedCourseId);
 
     if (!c) {
-
-        if (CourseAPI.isLoaded()) {
-            navigate("courses");
-            return;
-        }
-
-        app.innerHTML = `
-            ${header()}
-            <main class="container">${dataPlaceholder()}</main>
-        `;
+        navigate("courses");
         return;
     }
 
-    const isRegistered = CourseAPI.isRegistered(c.id);
+    const isRegistered = CourseAPI
+        .getRegisteredIds(userEmail())
+        .includes(c.id);
 
     const seats = CourseAPI.getSeatsLeft(c.id);
-
-    const blocked = isRegistered || seats <= 0;
 
     let buttonLabel = t("course.register");
 
@@ -1058,7 +870,7 @@ function showCourseDetails() {
             <div class="card" style="margin-top:25px">
 
                 <p class="course-code">
-                    ${esc(c.code)}
+                    ${c.code}
                 </p>
 
                 <h1 class="page-title">
@@ -1076,7 +888,7 @@ function showCourseDetails() {
                 </p>
 
                 <div class="course-instructor">
-
+                    
                     <img
                         class="instructor-photo"
                          src="${c.id === 21
@@ -1109,6 +921,17 @@ function showCourseDetails() {
                 <div class="section-picker">
                     <h3>${t("section.title")}</h3>
                     <p class="muted">${t("section.help")}</p>
+                    <div class="section-grid">
+                        <label>${t("course.instructor")}
+                            <select id="sectionInstructor">${optionList(CourseAPI.getInstructors().map(name => [name, name]), c.instructor)}</select>
+                        </label>
+                        <label>${t("course.day")}
+                            <select id="sectionDay">${optionList(DAY_ORDER.map(day => [day, t("day." + day)]), c.day)}</select>
+                        </label>
+                        <label>${t("course.time")}
+                            <select id="sectionTime">${optionList(["09:00|10:50", "11:00|12:50", "13:00|14:50", "14:00|15:50", "16:00|17:50"].map(slot => [slot, slot.replace("|", "–")]), c.start + "|" + c.end)}</select>
+                        </label>
+                    </div>
                     <div class="registration-seats">
                         <span>${t("course.seats")}</span>
                         <strong>${seats}</strong>
@@ -1116,11 +939,8 @@ function showCourseDetails() {
                 </div>
 
                 <button class="btn"
-                    id="registerButton"
-                    data-action="register"
-                    data-blocked="${blocked}"
                     onclick="registerCourse(${c.id})"
-                    ${blocked || busy ? "disabled" : ""}>
+                    ${isRegistered || seats <= 0 ? "disabled" : ""}>
 
                     ${buttonLabel}
 
@@ -1134,49 +954,35 @@ function showCourseDetails() {
 
 /* register */
 
-async function registerCourse(id) {
+function registerCourse(id) {
 
-    if (busy) return;   // a request is already running
-
-    if (!requireRole("student")) return;
+    if (!requireLocalRole("student")) return;
 
     const course = CourseAPI.getById(id);
 
-    if (!course) return;
+    const [start, end] = document.getElementById("sectionTime").value.split("|");
+    const section = { instructor: document.getElementById("sectionInstructor").value, day: document.getElementById("sectionDay").value, start, end };
+    const check = CourseAPI.canRegister(userEmail(), id, section);
 
-    setBusy(true);
-
-    let registered = false;
-
-    try {
-        // Same checks as the real registration, nothing is saved yet.
-        await CourseAPI.checkRegistration(id);
-
-        if (!confirm(t("confirm.register", { name: loc(course.name) }))) {
-            return;
-        }
-
-        // Only the course id is sent; the server re-checks everything.
-        await CourseAPI.register(id);
-        registered = true;
-
-        alert(t("msg.registered", { name: loc(course.name) }));
-
-    } catch (error) {
-        showActionError(error);   // err.alreadyRegistered / err.noSeats / err.conflict ...
-    } finally {
-        setBusy(false);
+    if (!check.success) {
+        showApiError(check);
+        return;
     }
 
-    if (!currentUser) return;
-
-    if (registered) {
-        currentView = "mycourses";
+    if (!confirm(t("confirm.register", { name: loc(course.name) }))) {
+        return;
     }
 
-    // Seats and registrations from the server (also after an error:
-    // the last seat may have been taken by someone else).
-    await refreshData(true);
+    const result = CourseAPI.register(userEmail(), id, section);
+
+    if (!result.success) {
+        showApiError(result);
+        return;
+    }
+
+    alert(t("msg.registered", { name: loc(course.name) }));
+
+    navigate("mycourses");
 }
 
 /* my courses osy jerde tur*/
@@ -1198,7 +1004,7 @@ function showMyCourses() {
                 ${t("mycourses.subtitle")}
             </p>
 
-            ${!CourseAPI.isLoaded() ? dataPlaceholder() : staleDataNotice() + (registered.length ? `
+            ${registered.length ? `
 
                 <div class="grid">
 
@@ -1207,7 +1013,7 @@ function showMyCourses() {
                         <div class="card">
 
                             <p class="course-code">
-                                ${esc(c.code)}
+                                ${c.code}
                             </p>
 
                             <h3>${esc(loc(c.name))}</h3>
@@ -1229,9 +1035,7 @@ function showMyCourses() {
                             <br>
 
                             <button class="btn btn-light"
-                                data-action="unregister"
-                                onclick="unregisterCourse(${c.id})"
-                                ${busy ? "disabled" : ""}>
+                                onclick="unregisterCourse(${c.id})">
                                 ${t("course.unregister")}
                             </button>
 
@@ -1256,7 +1060,7 @@ function showMyCourses() {
 
                 </div>
 
-            `)}
+            `}
 
         </main>
 
@@ -1268,101 +1072,39 @@ function showMyCourses() {
 
 /* registerdi kaitaru*/
 
-async function unregisterCourse(id) {
+function unregisterCourse(id) {
 
-    if (busy) return;
-
-    if (!requireRole("student")) return;
+    if (!requireLocalRole("student")) return;
 
     if (!confirm(t("confirm.unregister"))) {
         return;
     }
 
-    setBusy(true);
+    CourseAPI.unregister(userEmail(), id);
 
-    try {
-        await CourseAPI.unregister(id);
-    } catch (error) {
-        showActionError(error);
-    } finally {
-        setBusy(false);
-    }
-
-    if (currentUser) {
-        await refreshData(true);   // my courses + seats from the server
-    }
+    showMyCourses();
 }
 
 /* logout */
 
-async function logout() {
+function logout() {
 
-    if (busy) return;
+    logoutUser();
 
-    setBusy(true);
-
-    await Auth.logout();   // revokes the token on the server
-
-    setBusy(false);
-
-    endSession();
-}
-
-// Forget everything about the session and show the login page.
-function endSession() {
     currentUser = null;
-    Auth.clearSession();
-    CourseAPI.clear();
-    dataError = null;
-    filters = { ...defaultFilters };
+
     showLogin();
 }
 
-// A protected request answered 401: token expired, revoked or missing.
-ApiClient.onUnauthorized = function(error) {
 
-    if (!currentUser) return;   // already handled (parallel requests)
+document.title = t("app.title");
 
-    currentUser = null;
-
-    alert(t(error.code === "auth.sessionExpired" ? "auth.sessionExpired" : "auth.loginFirst"));
-
-    endSession();
-};
-
-/* start-up: restore the session after a page refresh */
-
-async function boot() {
-
-    document.title = t("app.title");
-
-    if (TokenStore.status() !== "valid") {
-        TokenStore.clear();
-        showLogin();
-        return;
-    }
-
-    showStartupLoading();
-
-    try {
-        currentUser = await Auth.restore();   // GET /api/auth/me
-    } catch (error) {
-        Auth.clearSession();
-        showLogin();
-
-        // 401: the token was revoked or has expired - just log in again.
-        if (!(error instanceof ApiError) || error.status !== 401) {
-            alert(errorMessage(error));
-        }
-        return;
-    }
-
-    if (!currentUser) {
-        showLogin();
-        return;
-    }
+if (currentUser) {
 
     navigate("dashboard");
-}
 
-boot();
+} else {
+
+    showLogin();
+
+}
