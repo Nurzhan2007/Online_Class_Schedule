@@ -22,6 +22,62 @@ const DEMO_USERS = [
         email: "admin@kbtu.kz",
         password: "admin123",
         role: "admin"
+    },
+    {
+        id: 4,
+        name: "Aruzhan Sadvakassova",
+        studentId: "23B031118",
+        email: "a.sadvakassova@kbtu.kz",
+        password: "student123",
+        role: "student"
+    },
+    {
+        id: 5,
+        name: "Madina Zhaksybekova",
+        studentId: "24B031312",
+        email: "m.zhaksybekova@kbtu.kz",
+        password: "student123",
+        role: "student"
+    },
+    {
+        id: 6,
+        name: "Alina Kim",
+        studentId: "24B061233",
+        email: "a.kim@kbtu.kz",
+        password: "student123",
+        role: "student"
+    },
+    {
+        id: 7,
+        name: "Dias Omarov",
+        studentId: "25B061204",
+        email: "d.omarov@kbtu.kz",
+        password: "student123",
+        role: "student"
+    },
+    {
+        id: 8,
+        name: "Arman Tleuov",
+        studentId: "26B061007",
+        email: "a.tleuov@kbtu.kz",
+        password: "student123",
+        role: "student"
+    },
+    {
+        id: 9,
+        name: "Timur Akhmetov",
+        studentId: "KBTU-T-0102",
+        email: "timur.akhmetov@kbtu.kz",
+        password: "teacher123",
+        role: "teacher"
+    },
+    {
+        id: 10,
+        name: "Olga Ivanova",
+        studentId: "KBTU-T-0103",
+        email: "olga.ivanova@kbtu.kz",
+        password: "teacher123",
+        role: "teacher"
     }
 ];
 

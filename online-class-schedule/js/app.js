@@ -41,6 +41,17 @@ function roomLabel(c) {
     return t("room." + c.room.kind) + " " + c.room.no;
 }
 
+// Standard time slots + the course's own slot, so the preselected
+// option always matches the real time of the course
+const STANDARD_SLOTS = ["09:00|10:50", "11:00|12:50", "13:00|14:50", "14:00|15:50", "16:00|17:50"];
+
+function timeSlotsFor(course) {
+    const own = course.start + "|" + course.end;
+    const slots = STANDARD_SLOTS.includes(own) ? STANDARD_SLOTS : STANDARD_SLOTS.concat(own);
+
+    return slots.slice().sort();
+}
+
 function optionList(items, selected) {
     return items.map(item => `
         <option value="${esc(item[0])}"
@@ -923,13 +934,13 @@ function showCourseDetails() {
                     <p class="muted">${t("section.help")}</p>
                     <div class="section-grid">
                         <label>${t("course.instructor")}
-                            <select id="sectionInstructor">${optionList(CourseAPI.getInstructors().map(name => [name, name]), c.instructor)}</select>
+                            <select id="sectionInstructor" disabled>${optionList([[c.instructor, c.instructor]], c.instructor)}</select>
                         </label>
                         <label>${t("course.day")}
                             <select id="sectionDay">${optionList(DAY_ORDER.map(day => [day, t("day." + day)]), c.day)}</select>
                         </label>
                         <label>${t("course.time")}
-                            <select id="sectionTime">${optionList(["09:00|10:50", "11:00|12:50", "13:00|14:50", "14:00|15:50", "16:00|17:50"].map(slot => [slot, slot.replace("|", "–")]), c.start + "|" + c.end)}</select>
+                            <select id="sectionTime">${optionList(timeSlotsFor(c).map(slot => [slot, slot.replace("|", "–")]), c.start + "|" + c.end)}</select>
                         </label>
                     </div>
                     <div class="registration-seats">

@@ -37,7 +37,7 @@ const TRANSLATIONS = {
         "schedule.subtitle": "See when courses meet across the university.",
         "schedule.legend": "Course meetings by weekday and start time",
         "section.title": "Choose your class section",
-        "section.help": "Select an instructor, day and time. The system checks for timetable conflicts.",
+        "section.help": "The instructor is fixed for the course. Choose a day and time; the system checks for timetable conflicts.",
         "nav.logout": "Logout",
 
         "header.loggedInAs": "Logged in as:",
@@ -177,7 +177,7 @@ const TRANSLATIONS = {
         "schedule.subtitle": "Посмотрите, когда проходят занятия по всем курсам.",
         "schedule.legend": "Занятия по дням недели и времени начала",
         "section.title": "Выберите группу",
-        "section.help": "Выберите преподавателя, день и время. Система проверит конфликты в расписании.",
+        "section.help": "Преподаватель закреплён за курсом. Выберите день и время; система проверит конфликты в расписании.",
         "nav.logout": "Выйти",
 
         "header.loggedInAs": "Вы вошли как:",
@@ -319,7 +319,7 @@ const TRANSLATIONS = {
         "schedule.subtitle": "Университеттегі барлық курстардың уақытын қараңыз.",
         "schedule.legend": "Апта күндері мен басталу уақыты бойынша сабақтар",
         "section.title": "Сабақ тобын таңдаңыз",
-        "section.help": "Оқытушыны, күнді және уақытты таңдаңыз. Жүйе кестедегі қайшылықтарды тексереді.",
+        "section.help": "Оқытушы курсқа бекітілген. Күн мен уақытты таңдаңыз; жүйе кестедегі қайшылықтарды тексереді.",
         "nav.logout": "Шығу",
 
         "header.loggedInAs": "Ретінде кірді:",
