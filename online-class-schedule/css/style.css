@@ -607,7 +607,7 @@ label {
 .lang-select {
     width: auto;
     margin: 0;
-    padding: 8px 10px;
+    padding: 8px 10px 8px 10px;
 
     font-size: 13px;
     border: 1px solid #ccc;
@@ -1077,8 +1077,48 @@ label {
     margin-bottom: 15px;
 }
 
-/* =================================
-   STUDENT DASHBOARD
+
+select {
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+
+    padding-right: 44px;
+
+    background-color: #fff;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'><path d='M1 1.5l5 5 5-5' fill='none' stroke='%23171717' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/></svg>");
+    background-repeat: no-repeat;
+    background-position: right 18px center;
+    background-size: 12px 8px;
+}
+
+.lang-select,
+.header .lang-select {
+    padding-right: 30px;
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+    background-size: 12px 8px;
+}
+
+.header .lang-select {
+    background-color: #111;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'><path d='M1 1.5l5 5 5-5' fill='none' stroke='%23ffffff' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/></svg>");
+}
+
+.filters-grid > div:last-child {
+    grid-column: 1 / -1;
+}
+
+@media (min-width: 1000px) {
+    .filters-grid > div:last-child {
+        grid-column: span 2;
+    }
+}
+
+.sort-controls select {
+    min-width: 130px;
+}/* =================================
+   STUDENT DASHBOARD  (style.css-тің ЕҢ СОҢЫНА қой)
 ================================= */
 
 .sd-note {
@@ -1266,13 +1306,15 @@ label {
 }
 .sd-term-sum { font-weight: 500; color: #666; font-size: 13px; }
 
-
+/* ---------- tablet ---------- */
 @media (max-width: 900px) {
     .sd-top { grid-template-columns: 1fr; }
 }
 
+/* ---------- phone ---------- */
 @media (max-width: 650px) {
 
+    /* ӨЗГЕРІС: студент аты енді жасырылмайды */
     .header {
         height: auto;
         min-height: 75px;
@@ -1297,9 +1339,8 @@ label {
         text-align: right;
         font-size: 12px;
         line-height: 1.4;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
+        white-space: normal;
+        overflow-wrap: anywhere;
     }
 
     .header-right .user-info .role-label { margin-left: 6px; padding: 2px 7px; font-size: 10px; }
@@ -1311,6 +1352,10 @@ label {
         gap: 22px;
     }
     .nav button { flex: 0 0 auto; white-space: nowrap; }
+
+    /* sort controls must fit on very small screens (320px) */
+    .sort-controls { flex-wrap: wrap; }
+    .sort-controls select { min-width: 0; }
 
     /* dashboard */
     .sd-stats { grid-template-columns: 1fr 1fr; gap: 12px; }

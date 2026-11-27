@@ -1,3 +1,20 @@
+/*
+ KBTU Online Class Schedule
+ Student dashboard page: profile, GPA, degree progress, courses.
+
+ Uses (already in the project):
+   i18n.js  -> TRANSLATIONS, t(), loc(), esc()
+   api.js   -> CourseAPI, DAY_ORDER
+   app.js   -> app, currentUser, header(), navigate()
+
+ Load this file after api.js (see index.html).
+
+ DATA NOTE
+ The backend has no grades / GPA / faculty yet, so the academic data below is
+ DEMO data. StudentAPI is the only place that knows where the data comes from.
+ When the backend gets e.g. GET /api/me/profile and GET /api/me/grades,
+ only StudentAPI.get() has to change - the page itself stays the same.
+*/
 
 // =================================
 // TRANSLATIONS (added to the existing ones)
@@ -15,6 +32,8 @@ Object.assign(TRANSLATIONS.en, {
     "sd.email": "Email",
     "sd.role": "Role",
     "sd.faculty": "Faculty",
+    "sd.department": "Department",
+    "sd.position": "Position",
     "sd.specialty": "Specialty",
     "sd.degree": "Degree",
     "sd.studyYear": "Year of study",
@@ -72,6 +91,8 @@ Object.assign(TRANSLATIONS.ru, {
     "sd.email": "Email",
     "sd.role": "Роль",
     "sd.faculty": "Факультет",
+    "sd.department": "Кафедра / отдел",
+    "sd.position": "Должность",
     "sd.specialty": "Специальность",
     "sd.degree": "Уровень обучения",
     "sd.studyYear": "Курс",
@@ -129,6 +150,8 @@ Object.assign(TRANSLATIONS.kk, {
     "sd.email": "Email",
     "sd.role": "Рөлі",
     "sd.faculty": "Факультет",
+    "sd.department": "Кафедра / бөлім",
+    "sd.position": "Лауазымы",
     "sd.specialty": "Мамандық",
     "sd.degree": "Оқу деңгейі",
     "sd.studyYear": "Курс",
@@ -176,9 +199,10 @@ Object.assign(TRANSLATIONS.kk, {
 // =================================
 // ACADEMIC SETTINGS
 // =================================
-const DEGREE_CREDITS = 130;
+const DEGREE_CREDITS = 130;   // credits needed for the degree (demo value)
 const STUDY_YEARS = 4;
 
+// 4.0 scale. GPA = sum(points * credits) / sum(credits)
 const GRADE_POINTS = {
     "A": 4.0,
     "A-": 3.67,
@@ -194,75 +218,157 @@ const GRADE_POINTS = {
 };
 
 // =================================
-// DEMO DATA (key = e-mail of the student)
+// DEMO DATA (key = e-mail of the user)
 // =================================
-function sdCourse(code, en, ru, kk, credits, grade) {
-    return { code: code, name: { en: en, ru: ru, kk: kk }, credits: credits, grade: grade };
+function sdCourse(code, en, ru, kk, credits) {
+    return { code: code, name: { en: en, ru: ru, kk: kk }, credits: credits };
+}
+
+// Study plan: 6 semesters x 5 courses (same for the demo students)
+const DEMO_CURRICULUM = [
+    [
+        sdCourse("CSCI1101", "Programming Principles I", "Принципы программирования I", "Бағдарламалау принциптері I", 5),
+        sdCourse("HIST1101", "History of Kazakhstan", "История Казахстана", "Қазақстан тарихы", 3),
+        sdCourse("LANG1101", "Academic English I", "Академический английский I", "Академиялық ағылшын тілі I", 3),
+        sdCourse("MATH1101", "Mathematical Analysis I", "Математический анализ I", "Математикалық талдау I", 5),
+        sdCourse("PHED1101", "Physical Education I", "Физическая культура I", "Дене шынықтыру I", 2)
+    ],
+    [
+        sdCourse("CSCI1102", "Programming Principles II", "Принципы программирования II", "Бағдарламалау принциптері II", 5),
+        sdCourse("MATH1102", "Mathematical Analysis II", "Математический анализ II", "Математикалық талдау II", 5),
+        sdCourse("LANG1102", "Academic English II", "Академический английский II", "Академиялық ағылшын тілі II", 3),
+        sdCourse("PHIL1101", "Philosophy", "Философия", "Философия", 3),
+        sdCourse("PHED1102", "Physical Education II", "Физическая культура II", "Дене шынықтыру II", 2)
+    ],
+    [
+        sdCourse("CSCI2101", "Object-Oriented Programming", "Объектно-ориентированное программирование", "Объектіге бағытталған бағдарламалау", 5),
+        sdCourse("MATH2101", "Probability Theory", "Теория вероятностей", "Ықтималдықтар теориясы", 4),
+        sdCourse("CSCI2102", "Computer Architecture", "Архитектура компьютеров", "Компьютер архитектурасы", 4),
+        sdCourse("LANG2101", "Professional Kazakh", "Профессиональный казахский язык", "Кәсіби қазақ тілі", 3),
+        sdCourse("ECOL1101", "Ecology and Life Safety", "Экология и безопасность жизнедеятельности", "Экология және өмір қауіпсіздігі", 2)
+    ],
+    [
+        sdCourse("CSCI2103", "Digital Logic Design", "Цифровая логика", "Цифрлық логика", 4),
+        sdCourse("LANG2102", "Technical Writing", "Техническое письмо", "Техникалық жазу", 3),
+        sdCourse("ECON1101", "Economics for Engineers", "Экономика для инженеров", "Инженерлерге арналған экономика", 3),
+        sdCourse("CSCI2104", "Software Engineering Basics", "Основы программной инженерии", "Бағдарламалық инженерия негіздері", 5),
+        sdCourse("CSCI2105", "Information Security Basics", "Основы информационной безопасности", "Ақпараттық қауіпсіздік негіздері", 3)
+    ],
+    [
+        sdCourse("CSCI3101", "Databases", "Базы данных", "Деректер қорлары", 5),
+        sdCourse("CSCI3102", "Operating Systems", "Операционные системы", "Операциялық жүйелер", 4),
+        sdCourse("MATH3101", "Discrete Mathematics", "Дискретная математика", "Дискретті математика", 4),
+        sdCourse("CSCI3103", "Computer Networks", "Компьютерные сети", "Компьютерлік желілер", 4),
+        sdCourse("LANG3101", "Business English", "Деловой английский", "Іскерлік ағылшын тілі", 3)
+    ],
+    [
+        sdCourse("CSCI3104", "Web Development", "Веб-разработка", "Веб-әзірлеу", 5),
+        sdCourse("CSCI3105", "Algorithms and Complexity", "Алгоритмы и сложность", "Алгоритмдер және күрделілік", 5),
+        sdCourse("CSCI3106", "Human-Computer Interaction", "Взаимодействие человека и компьютера", "Адам мен компьютер өзара әрекеті", 3),
+        sdCourse("STAT3101", "Statistics for Data Analysis", "Статистика для анализа данных", "Деректерді талдауға арналған статистика", 4),
+        sdCourse("ECON3101", "Entrepreneurship", "Предпринимательство", "Кәсіпкерлік", 3)
+    ]
+];
+
+// Builds the transcript: grades[i] = list of grades of semester i (same order as the curriculum).
+// Semester 0 is Fall of the admission year, 1 is Spring of the next year, and so on.
+function sdTranscript(admission, grades) {
+    return grades.map((row, i) => ({
+        year: admission + Math.floor(i / 2) + (i % 2),
+        term: i % 2 === 0 ? "fall" : "spring",
+        courses: DEMO_CURRICULUM[i].map((c, k) => ({ ...c, grade: row[k] }))
+    }));
+}
+
+const SD_FACULTY_IT = {
+    en: "School of Information Technology and Engineering",
+    ru: "Школа информационных технологий и инженерии",
+    kk: "Ақпараттық технологиялар және инженерия мектебі"
+};
+const SD_SPEC_IS = { en: "Information Systems", ru: "Информационные системы", kk: "Ақпараттық жүйелер" };
+const SD_SPEC_SE = { en: "Software Engineering", ru: "Программная инженерия", kk: "Бағдарламалық инженерия" };
+
+function sdStudent(specialty, admission, year, grades) {
+    return {
+        profile: {
+            faculty: SD_FACULTY_IT,
+            specialty: specialty,
+            degree: "bachelor",
+            admission: admission,
+            year: year,
+            status: "active"
+        },
+        semesters: sdTranscript(admission, grades)
+    };
 }
 
 const DEMO_ACADEMIC = {
 
-    "student@kbtu.kz": {
+    // 3rd year, Information Systems: GPA 3.54 (checked by hand)
+    "student@kbtu.kz": sdStudent(SD_SPEC_IS, 2024, 3, [
+        ["A-", "A", "B+", "B", "A"],
+        ["A", "B+", "A-", "B", "A"],
+        ["A", "B+", "B", "A-", "A"],
+        ["B+", "A", "B", "A-", "B+"]
+    ]),
 
-        profile: {
-            faculty: {
-                en: "School of Information Technology and Engineering",
-                ru: "Школа информационных технологий и инженерии",
-                kk: "Ақпараттық технологиялар және инженерия мектебі"
-            },
-            specialty: {
-                en: "Information Systems",
-                ru: "Информационные системы",
-                kk: "Ақпараттық жүйелер"
-            },
-            degree: "bachelor",
-            admission: 2024,
-            year: 3,
-            status: "active"
-        },
+    // 4th year, very strong student
+    "a.sadvakassova@kbtu.kz": sdStudent(SD_SPEC_IS, 2023, 4, [
+        ["A", "A", "A-", "A", "A"],
+        ["A", "A-", "A", "A", "A"],
+        ["A", "A", "A-", "A", "A"],
+        ["A-", "A", "A", "A", "A-"],
+        ["A", "A-", "A", "B+", "A"],
+        ["A", "A", "A-", "A", "A"]
+    ]),
 
-        semesters: [
-            {
-                year: 2024, term: "fall",
-                courses: [
-                    sdCourse("CSCI1101", "Programming Principles I", "Принципы программирования I", "Бағдарламалау принциптері I", 5, "A-"),
-                    sdCourse("HIST1101", "History of Kazakhstan", "История Казахстана", "Қазақстан тарихы", 3, "A"),
-                    sdCourse("LANG1101", "Academic English I", "Академический английский I", "Академиялық ағылшын тілі I", 3, "B+"),
-                    sdCourse("MATH1101", "Mathematical Analysis I", "Математический анализ I", "Математикалық талдау I", 5, "B"),
-                    sdCourse("PHED1101", "Physical Education I", "Физическая культура I", "Дене шынықтыру I", 2, "A")
-                ]
-            },
-            {
-                year: 2025, term: "spring",
-                courses: [
-                    sdCourse("CSCI1102", "Programming Principles II", "Принципы программирования II", "Бағдарламалау принциптері II", 5, "A"),
-                    sdCourse("MATH1102", "Mathematical Analysis II", "Математический анализ II", "Математикалық талдау II", 5, "B+"),
-                    sdCourse("LANG1102", "Academic English II", "Академический английский II", "Академиялық ағылшын тілі II", 3, "A-"),
-                    sdCourse("PHIL1101", "Philosophy", "Философия", "Философия", 3, "B"),
-                    sdCourse("PHED1102", "Physical Education II", "Физическая культура II", "Дене шынықтыру II", 2, "A")
-                ]
-            },
-            {
-                year: 2025, term: "fall",
-                courses: [
-                    sdCourse("CSCI2101", "Object-Oriented Programming", "Объектно-ориентированное программирование", "Объектіге бағытталған бағдарламалау", 5, "A"),
-                    sdCourse("MATH2101", "Probability Theory", "Теория вероятностей", "Ықтималдықтар теориясы", 4, "B+"),
-                    sdCourse("CSCI2102", "Computer Architecture", "Архитектура компьютеров", "Компьютер архитектурасы", 4, "B"),
-                    sdCourse("LANG2101", "Professional Kazakh", "Профессиональный казахский язык", "Кәсіби қазақ тілі", 3, "A-"),
-                    sdCourse("ECOL1101", "Ecology and Life Safety", "Экология и безопасность жизнедеятельности", "Экология және өмір қауіпсіздігі", 2, "A")
-                ]
-            },
-            {
-                year: 2026, term: "spring",
-                courses: [
-                    sdCourse("CSCI2103", "Digital Logic Design", "Цифровая логика", "Цифрлық логика", 4, "B+"),
-                    sdCourse("LANG2102", "Technical Writing", "Техническое письмо", "Техникалық жазу", 3, "A"),
-                    sdCourse("ECON1101", "Economics for Engineers", "Экономика для инженеров", "Инженерлерге арналған экономика", 3, "B"),
-                    sdCourse("CSCI2104", "Software Engineering Basics", "Основы программной инженерии", "Бағдарламалық инженерия негіздері", 5, "A-"),
-                    sdCourse("CSCI2105", "Information Security Basics", "Основы информационной безопасности", "Ақпараттық қауіпсіздік негіздері", 3, "B+")
-                ]
-            }
-        ]
+    // 3rd year, a weaker semester with a retake (F)
+    "m.zhaksybekova@kbtu.kz": sdStudent(SD_SPEC_IS, 2024, 3, [
+        ["B", "A-", "B", "C+", "A"],
+        ["B-", "C", "B", "B", "A-"],
+        ["C+", "F", "C", "B", "A"],
+        ["B", "B+", "C+", "B-", "B"]
+    ]),
+
+    // 3rd year, Software Engineering, average student
+    "a.kim@kbtu.kz": sdStudent(SD_SPEC_SE, 2024, 3, [
+        ["B+", "B", "B+", "B", "A"],
+        ["B", "B+", "B", "B-", "A"],
+        ["B+", "B", "B+", "B", "A-"],
+        ["B", "B+", "B", "B+", "B"]
+    ]),
+
+    // 2nd year
+    "d.omarov@kbtu.kz": sdStudent(SD_SPEC_SE, 2025, 2, [
+        ["A-", "A", "B+", "A-", "A"],
+        ["A", "B+", "A", "A-", "A"]
+    ]),
+
+    // 1st year: no finished semesters yet (empty transcript state)
+    "a.tleuov@kbtu.kz": sdStudent(SD_SPEC_SE, 2026, 1, [])
+};
+
+// Teachers and admin: no grades, but a detailed profile
+const DEMO_STAFF = {
+    "teacher@kbtu.kz": {
+        faculty: SD_FACULTY_IT,
+        department: { en: "Department of Computer Science", ru: "Кафедра компьютерных наук", kk: "Информатика кафедрасы" },
+        position: { en: "Senior Lecturer", ru: "Старший преподаватель", kk: "Аға оқытушы" }
+    },
+    "timur.akhmetov@kbtu.kz": {
+        faculty: SD_FACULTY_IT,
+        department: { en: "Department of Computer Science", ru: "Кафедра компьютерных наук", kk: "Информатика кафедрасы" },
+        position: { en: "Associate Professor", ru: "Ассоциированный профессор", kk: "Қауымдастырылған профессор" }
+    },
+    "olga.ivanova@kbtu.kz": {
+        faculty: SD_FACULTY_IT,
+        department: { en: "Department of Information Systems", ru: "Кафедра информационных систем", kk: "Ақпараттық жүйелер кафедрасы" },
+        position: { en: "Lecturer", ru: "Преподаватель", kk: "Оқытушы" }
+    },
+    "admin@kbtu.kz": {
+        faculty: null,
+        department: { en: "Registrar's Office", ru: "Офис регистратора", kk: "Тіркеуші кеңсесі" },
+        position: { en: "System Administrator", ru: "Системный администратор", kk: "Жүйе әкімшісі" }
     }
 };
 
@@ -439,7 +545,17 @@ function sdProfileCard(user, info, isStudent) {
             [t("sd.status"), t("sd.status." + p.status)]
         );
     } else {
+        const staff = DEMO_STAFF[String(user.email).toLowerCase()];
+
         rows.push([t("sd.role"), esc(t("role." + role))]);
+
+        if (staff) {
+            rows.push(
+                [t("sd.faculty"), staff.faculty ? esc(loc(staff.faculty)) : notSet],
+                [t("sd.department"), esc(loc(staff.department))],
+                [t("sd.position"), esc(loc(staff.position))]
+            );
+        }
     }
 
     return `
