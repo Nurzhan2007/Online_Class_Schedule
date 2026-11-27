@@ -1,20 +1,3 @@
-/*
- KBTU Online Class Schedule
- Student dashboard page: profile, GPA, degree progress, courses.
-
- Uses (already in the project):
-   i18n.js  -> TRANSLATIONS, t(), loc(), esc()
-   api.js   -> CourseAPI, DAY_ORDER
-   app.js   -> app, currentUser, header(), navigate()
-
- Load this file after api.js (see index.html).
-
- DATA NOTE
- The backend has no grades / GPA / faculty yet, so the academic data below is
- DEMO data. StudentAPI is the only place that knows where the data comes from.
- When the backend gets e.g. GET /api/me/profile and GET /api/me/grades,
- only StudentAPI.get() has to change - the page itself stays the same.
-*/
 
 // =================================
 // TRANSLATIONS (added to the existing ones)
@@ -193,10 +176,9 @@ Object.assign(TRANSLATIONS.kk, {
 // =================================
 // ACADEMIC SETTINGS
 // =================================
-const DEGREE_CREDITS = 130;   // credits needed for the degree (demo value)
+const DEGREE_CREDITS = 130;
 const STUDY_YEARS = 4;
 
-// 4.0 scale. GPA = sum(points * credits) / sum(credits)
 const GRADE_POINTS = {
     "A": 4.0,
     "A-": 3.67,
